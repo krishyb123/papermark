@@ -1,6 +1,6 @@
 "use client";
 
-import { type RunStatus } from "@trigger.dev/core/v3";
+import { type RunStatus } from "@trigger.dev/core";
 import { useRealtimeRunsWithTag } from "@trigger.dev/react-hooks";
 
 import { parseStatus } from "@/lib/utils/generate-trigger-status";

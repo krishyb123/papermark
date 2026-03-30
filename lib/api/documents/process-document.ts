@@ -1,6 +1,8 @@
+import { get } from "@vercel/edge-config";
 import { parsePageId } from "notion-utils";
 
 import { DocumentData } from "@/lib/documents/create-document";
+import { isTrustedTeam } from "@/lib/edge-config/trusted-teams";
 import { copyFileToBucketServer } from "@/lib/files/copy-file-to-bucket-server";
 import notion from "@/lib/notion";
 import { getNotionPageIdFromSlug } from "@/lib/notion/utils";
@@ -12,8 +14,8 @@ import {
 } from "@/lib/trigger/convert-files";
 import { processVideo } from "@/lib/trigger/optimize-video-files";
 import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
-import { getExtension } from "@/lib/utils";
-import { conversionQueue } from "@/lib/utils/trigger-utils";
+import { getExtension, log } from "@/lib/utils";
+import { conversionQueueName } from "@/lib/utils/trigger-utils";
 import { sendDocumentCreatedWebhook } from "@/lib/webhook/triggers/document-created";
 import { sendLinkCreatedWebhook } from "@/lib/webhook/triggers/link-created";
 
@@ -75,6 +77,37 @@ export const processDocument = async ({
     }
   }
 
+  // For link type, validate URL format
+  if (type === "link") {
+    try {
+      new URL(key);
+
+      // Skip keyword check for trusted teams
+      const trusted = await isTrustedTeam(teamId);
+      if (!trusted) {
+        const keywords = await get("keywords");
+        if (Array.isArray(keywords) && keywords.length > 0) {
+          const matchedKeyword = keywords.find(
+            (keyword) =>
+              typeof keyword === "string" &&
+              key.toLowerCase().includes(keyword.toLowerCase()),
+          );
+
+          if (matchedKeyword) {
+            log({
+              message: `Link document creation blocked: ${matchedKeyword} \n\n \`Metadata: {teamId: ${teamId}, url: ${key}}\``,
+              type: "error",
+              mention: true,
+            });
+            throw new Error("This URL is not allowed");
+          }
+        }
+      }
+    } catch (error) {
+      throw new Error("Invalid URL format for link document.");
+    }
+  }
+
   const folder = await prisma.folder.findUnique({
     where: {
       teamId_path: {
@@ -112,6 +145,7 @@ export const processDocument = async ({
         links: {
           create: {
             teamId,
+            ownerId: userId,
           },
         },
       }),
@@ -157,7 +191,7 @@ export const processDocument = async ({
           `document_${document.id}`,
           `version:${document.versions[0].id}`,
         ],
-        queue: conversionQueue(teamPlan),
+        queue: conversionQueueName(teamPlan),
         concurrencyKey: teamId,
       },
     );
@@ -175,7 +209,7 @@ export const processDocument = async ({
           `document_${document.id}`,
           `version:${document.versions[0].id}`,
         ],
-        queue: conversionQueue(teamPlan),
+        queue: conversionQueueName(teamPlan),
         concurrencyKey: teamId,
       },
     );
@@ -195,7 +229,7 @@ export const processDocument = async ({
           `document_${document.id}`,
           `version:${document.versions[0].id}`,
         ],
-        queue: conversionQueue(teamPlan),
+        queue: conversionQueueName(teamPlan),
         concurrencyKey: teamId,
       },
     );
@@ -221,7 +255,7 @@ export const processDocument = async ({
           `document_${document.id}`,
           `version:${document.versions[0].id}`,
         ],
-        queue: conversionQueue(teamPlan),
+        queue: conversionQueueName(teamPlan),
         concurrencyKey: teamId,
       },
     );
@@ -242,7 +276,7 @@ export const processDocument = async ({
           `document_${document.id}`,
           `version:${document.versions[0].id}`,
         ],
-        queue: conversionQueue(teamPlan),
+        queue: conversionQueueName(teamPlan),
         concurrencyKey: teamId,
       },
     );

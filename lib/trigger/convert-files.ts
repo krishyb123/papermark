@@ -1,4 +1,8 @@
-import { logger, retry, task } from "@trigger.dev/sdk/v3";
+import { python } from "@trigger.dev/python";
+import { logger, retry, task } from "@trigger.dev/sdk";
+import { writeFile, readFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { getFile } from "@/lib/files/get-file";
 import { putFileServer } from "@/lib/files/put-file-server";
@@ -7,6 +11,11 @@ import prisma from "@/lib/prisma";
 import { updateStatus } from "../utils/generate-trigger-status";
 import { getExtensionFromContentType } from "../utils/get-content-type";
 import { convertPdfToImageRoute } from "./pdf-to-image-route";
+import {
+  convertCadToPdfQueue,
+  convertFilesToPdfQueue,
+  convertKeynoteToPdfQueue,
+} from "./queues";
 
 export type ConvertPayload = {
   documentId: string;
@@ -17,9 +26,7 @@ export type ConvertPayload = {
 export const convertFilesToPdfTask = task({
   id: "convert-files-to-pdf",
   retry: { maxAttempts: 3 },
-  queue: {
-    concurrencyLimit: 10,
-  },
+  queue: convertFilesToPdfQueue,
   run: async (payload: ConvertPayload) => {
     updateStatus({ progress: 0, text: "Initializing..." });
 
@@ -78,55 +85,163 @@ export const convertFilesToPdfTask = task({
       type: document.versions[0].storageType,
     });
 
-    // Prepare form data
-    const formData = new FormData();
-    formData.append(
-      "downloadFrom",
-      JSON.stringify([
+    const CONVERSION_TIMEOUT_MS = 3 * 60 * 1000; // 3 min client-side timeout
+
+    updateStatus({ progress: 20, text: "Converting document…" });
+
+    let conversionResponse: Response;
+    try {
+      const fd = new FormData();
+      fd.append("downloadFrom", JSON.stringify([{ url: fileUrl }]));
+      fd.append("quality", "75");
+
+      conversionResponse = await fetch(
+        `${process.env.NEXT_PRIVATE_CONVERSION_BASE_URL}/forms/libreoffice/convert`,
         {
-          url: fileUrl,
-        },
-      ]),
-    );
-    formData.append("quality", "75");
-
-    updateStatus({ progress: 20, text: "Converting document..." });
-
-    // Make the conversion request
-    const conversionResponse = await retry.fetch(
-      `${process.env.NEXT_PRIVATE_CONVERSION_BASE_URL}/forms/libreoffice/convert`,
-      {
-        method: "POST",
-        body: formData,
-        headers: {
-          Authorization: `Basic ${process.env.NEXT_PRIVATE_INTERNAL_AUTH_TOKEN}`,
-        },
-        retry: {
-          byStatus: {
-            "500-599": {
-              strategy: "backoff",
-              maxAttempts: 3,
-              factor: 2,
-              minTimeoutInMs: 1_000,
-              maxTimeoutInMs: 30_000,
-              randomize: false,
-            },
+          method: "POST",
+          body: fd,
+          headers: {
+            Authorization: `Basic ${process.env.NEXT_PRIVATE_INTERNAL_AUTH_TOKEN}`,
           },
+          signal: AbortSignal.timeout(CONVERSION_TIMEOUT_MS),
         },
-      },
-    );
-
-    if (!conversionResponse.ok) {
-      updateStatus({ progress: 0, text: "Conversion failed" });
-      const body = await conversionResponse.json();
-      throw new Error(
-        `Conversion failed: ${body.message} ${conversionResponse.status}`,
       );
+    } catch (err) {
+      logger.warn("Gotenberg conversion failed, will attempt sanitization", {
+        error: String(err),
+      });
+      conversionResponse = new Response(null, {
+        status: 504,
+        statusText: "Conversion timed out or unreachable",
+      });
     }
 
-    const conversionBuffer = Buffer.from(
-      await conversionResponse.arrayBuffer(),
-    );
+    let conversionBuffer!: Buffer;
+
+    if (!conversionResponse.ok) {
+      const contentType = document.versions[0].contentType;
+      const isDocx =
+        contentType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+      if (isDocx) {
+        const inputPath = join(tmpdir(), `input-${Date.now()}.docx`);
+        const outputPath = join(tmpdir(), `output-${Date.now()}.docx`);
+        try {
+          let docxResponse: Response;
+          try {
+            docxResponse = await fetch(fileUrl);
+          } catch (err) {
+            updateStatus({ progress: 0, text: "Failed to retrieve DOCX file" });
+            throw new Error(
+              `Failed to fetch DOCX from signed URL for sanitization: ${String(err)}`,
+            );
+          }
+
+          if (!docxResponse.ok) {
+            updateStatus({ progress: 0, text: "Failed to retrieve DOCX file" });
+            throw new Error(
+              `Failed to fetch DOCX from signed URL for sanitization: HTTP ${docxResponse.status} ${docxResponse.statusText}`,
+            );
+          }
+
+          const responseContentType = docxResponse.headers.get("content-type");
+          if (
+            responseContentType &&
+            !responseContentType.includes(
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ) &&
+            !responseContentType.includes("application/octet-stream")
+          ) {
+            updateStatus({ progress: 0, text: "Invalid DOCX download response" });
+            throw new Error(
+              `Signed URL returned unexpected content-type for DOCX sanitization: ${responseContentType}`,
+            );
+          }
+
+          const docxBuffer = Buffer.from(await docxResponse.arrayBuffer());
+          await writeFile(inputPath, docxBuffer);
+
+          const attemptConversion = async (
+            sanitizedPath: string,
+          ): Promise<Response> => {
+            const buf = await readFile(sanitizedPath);
+            const fd = new FormData();
+            fd.append(
+              "files",
+              new Blob([new Uint8Array(buf)], { type: contentType }),
+              document.name,
+            );
+            fd.append("quality", "75");
+            return fetch(
+              `${process.env.NEXT_PRIVATE_CONVERSION_BASE_URL}/forms/libreoffice/convert`,
+              {
+                method: "POST",
+                body: fd,
+                headers: {
+                  Authorization: `Basic ${process.env.NEXT_PRIVATE_INTERNAL_AUTH_TOKEN}`,
+                },
+                signal: AbortSignal.timeout(CONVERSION_TIMEOUT_MS),
+              },
+            );
+          };
+
+          logger.warn("DOCX conversion failed, sanitizing document…", {
+            status: conversionResponse.status,
+          });
+
+          updateStatus({ progress: 25, text: "Sanitizing document…" });
+
+          const result = await python.runScript(
+            "./ee/features/conversions/python/docx-sanitizer.py",
+            ["-v", "--mode", "all", inputPath, outputPath],
+          );
+          logger.info("Sanitizer output", { stderr: result.stderr });
+
+          let retryResponse: Response;
+          try {
+            retryResponse = await attemptConversion(outputPath);
+          } catch (err) {
+            updateStatus({ progress: 0, text: "Conversion timed out" });
+            throw new Error(
+              `Conversion timed out after sanitization — LibreOffice could not process this file within ${CONVERSION_TIMEOUT_MS / 1000}s`,
+            );
+          }
+
+          if (!retryResponse.ok) {
+            updateStatus({ progress: 0, text: "Conversion failed" });
+            let message: string;
+            try {
+              const body = await retryResponse.json();
+              message = body.message ?? retryResponse.statusText;
+            } catch {
+              message = retryResponse.statusText || "Unknown error";
+            }
+            throw new Error(
+              `Conversion failed after sanitization: ${message} (${retryResponse.status})`,
+            );
+          }
+
+          conversionBuffer = Buffer.from(await retryResponse.arrayBuffer());
+        } finally {
+          await Promise.allSettled([unlink(inputPath), unlink(outputPath)]);
+        }
+      } else {
+        updateStatus({ progress: 0, text: "Conversion failed" });
+        let message: string;
+        try {
+          const body = await conversionResponse.json();
+          message = body.message ?? conversionResponse.statusText;
+        } catch {
+          message = conversionResponse.statusText || "Unknown error";
+        }
+        throw new Error(
+          `Conversion failed: ${message} (${conversionResponse.status})`,
+        );
+      }
+    } else {
+      conversionBuffer = Buffer.from(await conversionResponse.arrayBuffer());
+    }
 
     console.log("conversionBuffer", conversionBuffer);
 
@@ -207,9 +322,7 @@ export const convertFilesToPdfTask = task({
 export const convertCadToPdfTask = task({
   id: "convert-cad-to-pdf",
   retry: { maxAttempts: 3 },
-  queue: {
-    concurrencyLimit: 2,
-  },
+  queue: convertCadToPdfQueue,
   run: async (payload: ConvertPayload) => {
     const team = await prisma.team.findUnique({
       where: {
@@ -394,9 +507,7 @@ export const convertCadToPdfTask = task({
 export const convertKeynoteToPdfTask = task({
   id: "convert-keynote-to-pdf",
   retry: { maxAttempts: 3 },
-  queue: {
-    concurrencyLimit: 2,
-  },
+  queue: convertKeynoteToPdfQueue,
   run: async (payload: ConvertPayload) => {
     const team = await prisma.team.findUnique({
       where: {
