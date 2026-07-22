@@ -20,6 +20,8 @@ function isAnalyticsPath(path: string) {
 }
 
 function isCustomDomain(host: string) {
+  // Self-hosted: the app's own host must never be treated as a custom link domain
+  const appHost = process.env.NEXT_PUBLIC_APP_BASE_HOST;
   return (
     (process.env.NODE_ENV === "development" &&
       (host?.includes(".local") || host?.includes("papermark.dev"))) ||
@@ -28,6 +30,7 @@ function isCustomDomain(host: string) {
         host?.includes("localhost") ||
         host?.includes("papermark.io") ||
         host?.includes("papermark.com") ||
+        (appHost ? host === appHost : false) ||
         host?.endsWith(".vercel.app")
       ))
   );
