@@ -44,6 +44,7 @@ export default defineConfig({
           "VERCEL_BLOB_HOST",
           "EMAIL_FROM",
           "RESEND_API_KEY",
+          "INTERNAL_API_KEY",
         ]
           .filter((name) => !!process.env[name])
           .map((name) => ({ name, value: process.env[name] as string })),
