@@ -122,7 +122,12 @@ export const authOptions: NextAuthOptions = {
         sameSite: "lax",
         path: "/",
         // When working on localhost, the cookie domain must be omitted entirely (https://stackoverflow.com/a/1188145)
-        domain: VERCEL_DEPLOYMENT ? ".papermark.com" : undefined,
+        // Self-hosted: scope the cookie to our own apex domain, not papermark.com
+        domain: VERCEL_DEPLOYMENT
+          ? process.env.NEXT_PUBLIC_APP_BASE_HOST
+            ? `.${process.env.NEXT_PUBLIC_APP_BASE_HOST.replace(/^www\./, "").split(".").slice(-2).join(".")}`
+            : undefined
+          : undefined,
         secure: VERCEL_DEPLOYMENT,
       },
     },
