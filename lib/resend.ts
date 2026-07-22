@@ -44,7 +44,10 @@ export const sendEmail = async ({
   const html = await render(react);
   const plainText = toPlainText(html);
 
+  // Self-hosted: EMAIL_FROM overrides all hardcoded @papermark.io senders,
+  // which only papermark's own Resend account can use
   const fromAddress =
+    process.env.EMAIL_FROM ??
     from ??
     (marketing
       ? "Marc from Papermark <marc@ship.papermark.io>"
