@@ -35,6 +35,7 @@ export default defineConfig({
           "DATABASE_URL",
           "BLOB_READ_WRITE_TOKEN",
           "TINYBIRD_TOKEN",
+          "TINYBIRD_BASE_URL",
           "NEXT_PUBLIC_UPLOAD_TRANSPORT",
           "NEXT_PRIVATE_UPLOAD_DISTRIBUTION_HOST",
           "NEXTAUTH_URL",
