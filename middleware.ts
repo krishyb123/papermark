@@ -31,6 +31,7 @@ function isCustomDomain(host: string) {
         host?.includes("papermark.io") ||
         host?.includes("papermark.com") ||
         (appHost ? host === appHost : false) ||
+        host === "deck.bobbybrowser.com" ||
         host?.endsWith(".vercel.app")
       ))
   );
