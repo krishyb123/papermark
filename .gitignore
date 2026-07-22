@@ -62,3 +62,5 @@ lib/emails/marketing
 
 # changelog
 changelog
+# local deck files - uploaded via app, not deployed
+Core_Materials/
