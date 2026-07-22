@@ -21,7 +21,7 @@ export default defineConfig({
     extensions: [
       prismaExtension({
         mode: "legacy",
-        schema: "./prisma/schema",
+        schema: "prisma/schema/schema.prisma",
       }),
       ffmpeg(),
       pythonExtension({
