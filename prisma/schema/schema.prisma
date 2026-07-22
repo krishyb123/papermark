@@ -49,6 +49,7 @@ model User {
   documents      Document[]
   teams          UserTeam[]
   domains        Domain[]
+  links          Link[]     @relation("LinkOwner")
   chats          Chat[]
   contactId      String?
   plan           String     @default("free")

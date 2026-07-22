@@ -84,6 +84,9 @@ model Link {
   teamId String?
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
+  ownerId String?
+  owner   User?   @relation("LinkOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
   customFields CustomField[]
 
   tags TagItem[]
