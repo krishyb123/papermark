@@ -1,9 +1,11 @@
 "use client";
 
-import { type RunStatus } from "@trigger.dev/core";
 import { useRealtimeRunsWithTag } from "@trigger.dev/react-hooks";
 
-import { parseStatus } from "@/lib/utils/generate-trigger-status";
+import { parseStatus } from "@/lib/utils/trigger-status";
+
+type RunStatus =
+  ReturnType<typeof useRealtimeRunsWithTag>["runs"][number]["status"];
 
 interface IDocumentProgressStatus {
   state: RunStatus;
@@ -25,7 +27,7 @@ export function useDocumentProgressStatus(
 
   // Find the most recent active run (QUEUED or EXECUTING)
   const activeRun = runs.find((run) =>
-    ["QUEUED", "EXECUTING"].includes(run.status),
+    ["QUEUED", "EXECUTING", "WAITING"].includes(run.status),
   );
 
   const status: IDocumentProgressStatus = {
