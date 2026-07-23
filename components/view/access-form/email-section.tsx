@@ -143,11 +143,6 @@ export default function EmailSection({
           {emailError}
         </p>
       )}
-      <p className="text-sm text-gray-500">
-        {useCustomAccessForm
-          ? "This data will be shared with the content provider."
-          : "This data will be shared with the sender."}
-      </p>
     </div>
   );
 }
