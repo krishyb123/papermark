@@ -27,47 +27,27 @@ export default function App({
   return (
     <>
       <Head>
-        <title>Papermark | The Open Source DocSend Alternative</title>
+        <title>BobbyBrowser</title>
         <meta name="theme-color" content="#000000" />
-        <meta
-          name="description"
-          content="Papermark is an open-source document sharing alternative to DocSend with built-in analytics."
-          key="description"
-        />
-        <meta
-          property="og:title"
-          content="Papermark | The Open Source DocSend Alternative"
-          key="og-title"
-        />
+        <meta name="description" content="BobbyBrowser" key="description" />
+        <meta property="og:title" content="BobbyBrowser" key="og-title" />
         <meta
           property="og:description"
-          content="Papermark is an open-source document sharing alternative to DocSend with built-in analytics."
+          content="BobbyBrowser"
           key="og-description"
         />
         <meta
-          property="og:image"
-          content="https://www.papermark.com/_static/meta-image.png"
-          key="og-image"
-        />
-        <meta
           property="og:url"
-          content="https://www.papermark.com"
+          content={`https://${process.env.NEXT_PUBLIC_APP_BASE_HOST || "www.papermark.com"}`}
           key="og-url"
         />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:site" content="@papermarkio" />
-        <meta name="twitter:creator" content="@papermarkio" />
-        <meta name="twitter:title" content="Papermark" key="tw-title" />
+        <meta name="twitter:title" content="BobbyBrowser" key="tw-title" />
         <meta
           name="twitter:description"
-          content="Papermark is an open-source document sharing alternative to DocSend with built-in analytics."
+          content="BobbyBrowser"
           key="tw-description"
-        />
-        <meta
-          name="twitter:image"
-          content="https://www.papermark.com/_static/meta-image.png"
-          key="tw-image"
         />
         <link rel="icon" href="/favicon.ico" key="favicon" />
       </Head>
