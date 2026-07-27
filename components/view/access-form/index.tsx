@@ -130,11 +130,11 @@ export default function AccessForm({
             backgroundColor: brand.brandColor ? brand.brandColor : "black",
           }}
         >
-          <div className="flex h-16 items-center justify-start px-2 sm:px-6 lg:px-8">
+          <div className="flex h-20 items-center justify-start px-6 py-4 sm:px-10 lg:px-12">
             <img
               src={brand.logo as string}
               alt="Brand Logo"
-              className="h-16 w-auto object-contain"
+              className="h-12 w-auto object-contain"
             />
           </div>
         </nav>
