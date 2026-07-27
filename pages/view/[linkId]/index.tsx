@@ -202,7 +202,8 @@ export const getStaticProps = async (context: GetStaticPropsContext) => {
             teamId === "cm9ztf0s70005js04i689gefn",
           logoOnAccessForm:
             teamId === "cm7nlkrhm0000qgh0nvyrrywr" ||
-            teamId === "clup33by90000oewh4rfvp2eg",
+            teamId === "clup33by90000oewh4rfvp2eg" ||
+            teamId === "cmrwjkzsz0000ky049xrtgcb6", // self-host: BobbyBrowser team
           annotationsEnabled,
         },
         revalidate: brand || recordMap ? 10 : 60,
@@ -285,7 +286,8 @@ export const getStaticProps = async (context: GetStaticPropsContext) => {
             teamId === "cm9ztf0s70005js04i689gefn",
           logoOnAccessForm:
             teamId === "cm7nlkrhm0000qgh0nvyrrywr" ||
-            teamId === "clup33by90000oewh4rfvp2eg",
+            teamId === "clup33by90000oewh4rfvp2eg" ||
+            teamId === "cmrwjkzsz0000ky049xrtgcb6", // self-host: BobbyBrowser team
           dataroomIndexEnabled,
           annotationsEnabled,
         },
