@@ -238,16 +238,7 @@ export default function Nav({
         <div className="relative flex h-16 items-center justify-between">
           <div className="flex flex-1 items-center justify-start">
             <div className="relative flex h-16 w-36 flex-shrink-0 items-center">
-              {brand && brand.logo ? (
-                <img
-                  className="h-16 w-36 object-contain"
-                  src={brand.logo}
-                  alt="Logo"
-                  // fill
-                  // quality={100}
-                  // priority
-                />
-              ) : (
+              {brand ? null : ( // self-host: no logo inside the viewer — the deck speaks for itself
                 <Link
                   href={`https://www.papermark.com/home?utm_campaign=navbar&utm_medium=navbar&utm_source=papermark-${linkId}`}
                   target="_blank"
