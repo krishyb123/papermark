@@ -1,8 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 
-import prisma from "@/lib/prisma";
-import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
-import { conversionQueueName } from "@/lib/utils/trigger-utils";
+import { publishDeckVersion } from "@/lib/deck/publish-version";
 
 /**
  * POST /api/internal/publish-deck-version
@@ -11,8 +9,8 @@ import { conversionQueueName } from "@/lib/utils/trigger-utils";
  * PDF URL. Every link pointing at the document serves the new version
  * immediately — no link needs to be recreated or re-sent.
  *
- * Auth: Bearer INTERNAL_API_KEY (same key the trigger tasks use), so this can
- * be called by a cron job, an external webhook, or a local script.
+ * Auth: Bearer DECK_PUBLISH_KEY, so this can be called by a cron job, an
+ * external webhook, or a local script.
  *
  * Body: { documentId, url, numPages, fileSize?, contentType? }
  */
@@ -29,13 +27,7 @@ export default async function handle(
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const {
-    documentId,
-    url,
-    numPages,
-    fileSize,
-    contentType = "application/pdf",
-  } = req.body as {
+  const { documentId, url, numPages, fileSize, contentType } = req.body as {
     documentId?: string;
     url?: string;
     numPages?: number;
@@ -57,77 +49,14 @@ export default async function handle(
   }
 
   try {
-    const document = await prisma.document.findUnique({
-      where: { id: documentId },
-      select: {
-        id: true,
-        teamId: true,
-        team: { select: { plan: true } },
-        versions: {
-          orderBy: { versionNumber: "desc" },
-          take: 1,
-          select: { versionNumber: true },
-        },
-      },
-    });
-
-    if (!document) {
-      return res.status(404).json({ error: "Document not found" });
-    }
-
-    const teamId = document.teamId;
-    const nextVersionNumber = (document.versions[0]?.versionNumber ?? 0) + 1;
-
-    const version = await prisma.documentVersion.create({
-      data: {
-        documentId,
-        file: url,
-        originalFile: url,
-        type: "pdf",
-        storageType: "VERCEL_BLOB",
-        numPages,
-        isPrimary: true,
-        versionNumber: nextVersionNumber,
-        contentType,
-        fileSize,
-      },
-    });
-
-    // Only one version may be primary; demote the rest.
-    await prisma.documentVersion.updateMany({
-      where: { documentId, id: { not: version.id } },
-      data: { isPrimary: false },
-    });
-
-    await prisma.document.update({
-      where: { id: documentId },
-      data: { numPages },
-    });
-
-    await convertPdfToImageRoute.trigger(
-      {
-        documentId,
-        documentVersionId: version.id,
-        teamId,
-        versionNumber: version.versionNumber,
-      },
-      {
-        idempotencyKey: `${teamId}-${version.id}`,
-        tags: [
-          `team_${teamId}`,
-          `document_${documentId}`,
-          `version:${version.id}`,
-        ],
-        queue: conversionQueueName(document.team?.plan ?? "free"),
-        concurrencyKey: teamId,
-      },
-    );
-
-    return res.status(200).json({
-      documentVersionId: version.id,
-      versionNumber: version.versionNumber,
+    const result = await publishDeckVersion({
+      documentId,
+      url,
       numPages,
+      fileSize,
+      contentType,
     });
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({
       error: "Failed to publish version",
