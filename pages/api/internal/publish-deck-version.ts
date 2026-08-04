@@ -25,7 +25,7 @@ export default async function handle(
   }
 
   const token = req.headers.authorization?.replace("Bearer ", "");
-  if (!process.env.INTERNAL_API_KEY || token !== process.env.INTERNAL_API_KEY) {
+  if (!process.env.DECK_PUBLISH_KEY || token !== process.env.DECK_PUBLISH_KEY) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
