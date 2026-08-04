@@ -192,8 +192,9 @@ export const getStaticProps = async (context: GetStaticPropsContext) => {
             metaFavicon: link.metaFavicon ?? "/favicon.ico",
             metaUrl: `https://${process.env.NEXT_PUBLIC_APP_BASE_HOST || "www.papermark.com"}/view/${linkId}`,
           },
-          showPoweredByBanner: link.showBanner || teamPlan === "free",
-          showAccountCreationSlide: link.showBanner || teamPlan === "free",
+          showPoweredByBanner: false, // self-host: never show the Papermark upsell badge
+          // Self-hosted: never append Papermark's sign-up slide to our deck.
+          showAccountCreationSlide: false,
           useAdvancedExcelViewer: advancedExcelEnabled,
           useCustomAccessForm:
             teamId === "cm0154tiv0000lr2t6nr5c6kp" ||
